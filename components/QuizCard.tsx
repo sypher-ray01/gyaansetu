@@ -1,10 +1,13 @@
-
 import React, { useState } from 'react';
 import type { Quiz, Question } from '../types';
+import { SaveIcon } from './icons/SaveIcon';
+import { CheckIcon } from './icons/CheckIcon';
 
 interface QuizCardProps {
   topic: string;
   quiz: Quiz;
+  onSave: () => void;
+  isSaved: boolean;
 }
 
 const QuestionView: React.FC<{ question: Question; index: number }> = ({ question, index }) => {
@@ -59,12 +62,28 @@ const QuestionView: React.FC<{ question: Question; index: number }> = ({ questio
 };
 
 
-export const QuizCard: React.FC<QuizCardProps> = ({ topic, quiz }) => {
+export const QuizCard: React.FC<QuizCardProps> = ({ topic, quiz, onSave, isSaved }) => {
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-lg animate-fade-in">
-      <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white capitalize mb-6">
-        Quiz on: {topic}
-      </h2>
+    <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-b-2xl shadow-lg animate-fade-in">
+      <div className="flex justify-between items-start mb-6">
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white capitalize">
+          Quiz on: {topic}
+        </h2>
+        {!isSaved ? (
+          <button
+            onClick={onSave}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+          >
+            <SaveIcon />
+            Save
+          </button>
+        ) : (
+          <span className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+            <CheckIcon />
+            Saved
+          </span>
+        )}
+      </div>
       <div>
         {quiz.questions.map((q, index) => (
           <QuestionView key={index} question={q} index={index} />

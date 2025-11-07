@@ -1,11 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { CopyIcon } from './icons/CopyIcon';
 import { CheckIcon } from './icons/CheckIcon';
+import { SaveIcon } from './icons/SaveIcon';
+import type { Notes } from '../types';
 
 interface NotesCardProps {
   topic: string;
-  content: string;
+  content: Notes;
+  onSave: () => void;
+  isSaved: boolean;
 }
 
 // A simple markdown to HTML converter
@@ -27,11 +30,11 @@ const MarkdownViewer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 
-export const NotesCard: React.FC<NotesCardProps> = ({ topic, content }) => {
+export const NotesCard: React.FC<NotesCardProps> = ({ topic, content, onSave, isSaved }) => {
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    navigator.clipboard.writeText(content.content);
     setIsCopied(true);
   };
 
@@ -43,27 +46,65 @@ export const NotesCard: React.FC<NotesCardProps> = ({ topic, content }) => {
   }, [isCopied]);
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-lg animate-fade-in">
+    <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-b-2xl shadow-lg animate-fade-in">
       <div className="flex justify-between items-start mb-4">
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white capitalize">
           Notes on: {topic}
         </h2>
-        <button
-          onClick={handleCopy}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isCopied
-              ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-              : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          {isCopied ? <CheckIcon /> : <CopyIcon />}
-          {isCopied ? 'Copied!' : 'Copy'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopy}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isCopied
+                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}
+          >
+            {isCopied ? <CheckIcon /> : <CopyIcon />}
+            {isCopied ? 'Copied!' : 'Copy'}
+          </button>
+          {!isSaved ? (
+            <button
+              onClick={onSave}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+            >
+              <SaveIcon />
+              Save
+            </button>
+          ) : (
+            <span className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+              <CheckIcon />
+              Saved
+            </span>
+          )}
+        </div>
       </div>
       <hr className="border-slate-200 dark:border-slate-700 my-4" />
       <div className="text-slate-700 dark:text-slate-300 leading-relaxed text-lg">
-         <MarkdownViewer text={content} />
+         <MarkdownViewer text={content.content} />
       </div>
+      {content.sources && content.sources.length > 0 && (
+        <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
+            Sources
+          </h3>
+          <ul className="list-disc pl-5 space-y-1">
+            {content.sources.map((source, index) => (
+              <li key={index} className="text-sm truncate">
+                <a 
+                  href={source.uri} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                  title={source.title}
+                >
+                  {source.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
