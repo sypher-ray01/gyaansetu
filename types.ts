@@ -41,3 +41,25 @@ export interface PlannerTask {
     priority: 'Low' | 'Medium' | 'High';
     completed: boolean;
 }
+
+// Gamification Types
+export type QuizMode = 'mcq' | 'rapid' | 'challenge';
+export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+
+export interface Badge {
+    id: string;
+    name: string;
+    description: string;
+}
+
+export interface GamificationStats {
+    quizzesCompleted: number;
+    correctAnswers: number;
+    highestStreak: number;
+}
+export interface GamificationData {
+    level: number;
+    xp: number;
+    badges: string[]; // Array of badge IDs
+    stats: GamificationStats;
+}

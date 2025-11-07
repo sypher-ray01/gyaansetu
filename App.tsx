@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { generateNotes, generateQuiz, generateFromFileContent, generateConceptMap } from './services/geminiService';
 import { readFileContent } from './utils/fileReader';
-import type { Quiz, SavedItem, Notes, FileGeneratedContent, ConceptMap, PlannerTask } from './types';
+import type { Quiz, SavedItem, Notes, FileGeneratedContent, ConceptMap, PlannerTask, GamificationData } from './types';
 import { NotesCard } from './components/NotesCard';
 import { QuizCard } from './components/QuizCard';
 import { ConceptMapCard } from './components/ConceptMapCard';
@@ -16,12 +16,17 @@ import { PlannerIcon } from './components/icons/PlannerIcon';
 import { BookmarksList } from './components/BookmarksList';
 import { StarIcon } from './components/icons/StarIcon';
 import { StarFilledIcon } from './components/icons/StarFilledIcon';
-
+import { QuizArena } from './components/QuizArena';
+import { QuizArenaIcon } from './components/icons/QuizArenaIcon';
+import { checkAndAwardBadges, ALL_BADGES } from './utils/badges';
 
 type View = 'topic' | 'file' | null;
-type MainView = 'generator' | 'planner';
+type MainView = 'generator' | 'planner' | 'quizArena';
 type TopicView = 'notes' | 'quiz' | 'map';
 type Difficulty = 'Easy' | 'Medium' | 'Hard';
+
+const XP_PER_CORRECT_ANSWER = 10;
+const XP_FOR_LEVEL_UP = 100;
 
 const App: React.FC = () => {
   const [topic, setTopic] = useState<string>('');
@@ -44,6 +49,17 @@ const App: React.FC = () => {
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([]);
   const [bookmarkedTopics, setBookmarkedTopics] = useState<string[]>([]);
   const [isCurrentContentSaved, setIsCurrentContentSaved] = useState<boolean>(false);
+  
+  const [gamificationData, setGamificationData] = useState<GamificationData>({
+    level: 1,
+    xp: 0,
+    badges: [],
+    stats: {
+        quizzesCompleted: 0,
+        correctAnswers: 0,
+        highestStreak: 0,
+    }
+  });
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -63,7 +79,7 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  // Load saved items, planner tasks, and bookmarks from localStorage on initial render
+  // Load saved items, planner tasks, bookmarks, and game data from localStorage
   useEffect(() => {
     try {
       const storedItems = localStorage.getItem('studyMateHistory');
@@ -74,6 +90,13 @@ const App: React.FC = () => {
       
       const storedBookmarks = localStorage.getItem('studyMate_bookmarks');
       if (storedBookmarks) setBookmarkedTopics(JSON.parse(storedBookmarks));
+      
+      const storedGameData = localStorage.getItem('studyMate_gamification');
+      if (storedGameData) {
+        // Merge with default to ensure new fields are present
+        const parsedData = JSON.parse(storedGameData);
+        setGamificationData(prev => ({...prev, ...parsedData}));
+      }
 
     } catch (e) {
       console.error("Failed to load saved items from localStorage", e);
@@ -106,6 +129,15 @@ const App: React.FC = () => {
       console.error("Failed to save bookmarks to localStorage", e);
     }
   }, [bookmarkedTopics]);
+  
+  // Save gamification data to localStorage whenever it changes
+  useEffect(() => {
+    try {
+        localStorage.setItem('studyMate_gamification', JSON.stringify(gamificationData));
+    } catch (e) {
+        console.error("Failed to save gamification data to localStorage", e);
+    }
+  }, [gamificationData]);
 
 
   const clearAllOutputs = () => {
@@ -151,7 +183,7 @@ const App: React.FC = () => {
     setActiveView('topic');
     setActiveTopicView('quiz');
     try {
-      const generatedQuiz = await generateQuiz(topic, difficulty);
+      const generatedQuiz = await generateQuiz(topic, difficulty, 3);
       setQuiz(generatedQuiz);
       setIsCurrentContentSaved(false);
     } catch (e) {
@@ -242,11 +274,7 @@ const App: React.FC = () => {
       
       if (item.type === 'notes') {
         setActiveTopicView('notes');
-        if (typeof item.content === 'string') {
-          setNotes({ content: item.content, sources: [] });
-        } else {
-          setNotes(item.content as Notes);
-        }
+        setNotes(item.content as Notes);
       } else if (item.type === 'quiz') {
         setActiveTopicView('quiz');
         setQuiz(item.content as Quiz);
@@ -267,11 +295,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleAddTask = (task: Omit<PlannerTask, 'id' | 'completed'>) => {
-    const newTask: PlannerTask = {
-        ...task,
-        id: Date.now().toString(),
-        completed: false,
-    };
+    const newTask: PlannerTask = { ...task, id: Date.now().toString(), completed: false };
     setPlannerTasks(prev => [newTask, ...prev]);
   };
 
@@ -292,7 +316,6 @@ const App: React.FC = () => {
         if (isBookmarked) {
             return prev.filter(b => b !== topicToBookmark);
         } else {
-            // Add to the beginning of the list
             return [topicToBookmark, ...prev];
         }
     });
@@ -305,10 +328,32 @@ const App: React.FC = () => {
       setMainView('generator');
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+  
+  const handleQuizComplete = useCallback((results: { correctCount: number; streak: number; mode: string }) => {
+    setGamificationData(prev => {
+        const newXp = prev.xp + (results.correctCount * XP_PER_CORRECT_ANSWER);
+        const newLevel = prev.level + Math.floor(newXp / XP_FOR_LEVEL_UP);
+        const remainingXp = newXp % XP_FOR_LEVEL_UP;
 
-  const toggleTheme = () => {
-    setIsDarkMode(prevMode => !prevMode);
-  };
+        const newStats = {
+            quizzesCompleted: (prev.stats?.quizzesCompleted || 0) + 1,
+            correctAnswers: (prev.stats?.correctAnswers || 0) + results.correctCount,
+            highestStreak: Math.max(prev.stats?.highestStreak || 0, results.streak),
+        };
+
+        const newlyUnlockedBadges = checkAndAwardBadges(newStats, prev.badges);
+        
+        return {
+            ...prev,
+            level: newLevel,
+            xp: remainingXp,
+            stats: newStats,
+            badges: [...prev.badges, ...newlyUnlockedBadges],
+        };
+    });
+  }, []);
+
+  const toggleTheme = () => setIsDarkMode(prevMode => !prevMode);
   
   const handleTopicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTopic = e.target.value;
@@ -419,6 +464,13 @@ const App: React.FC = () => {
                     <GeneratorIcon />
                     Generator
                 </button>
+                 <button 
+                    onClick={() => setMainView('quizArena')}
+                    className={`flex-1 py-4 px-2 text-lg font-semibold flex items-center justify-center gap-2 transition-colors ${mainView === 'quizArena' ? 'text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900/50' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                >
+                    <QuizArenaIcon />
+                    Quiz Arena
+                </button>
                 <button 
                     onClick={() => setMainView('planner')}
                     className={`flex-1 py-4 px-2 text-lg font-semibold flex items-center justify-center gap-2 transition-colors ${mainView === 'planner' ? 'text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900/50 rounded-tr-2xl' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
@@ -427,13 +479,22 @@ const App: React.FC = () => {
                     Planner
                 </button>
            </div>
-           <div className="p-6">
-                {mainView === 'generator' ? renderGeneratorView() : (
+           <div className="p-6 relative">
+                {mainView === 'generator' && renderGeneratorView()}
+                {mainView === 'planner' && (
                     <Planner 
                         tasks={plannerTasks} 
                         onAddTask={handleAddTask} 
                         onUpdateTask={handleUpdateTask} 
                         onDeleteTask={handleDeleteTask}
+                    />
+                )}
+                {mainView === 'quizArena' && (
+                    <QuizArena
+                        gamificationData={gamificationData}
+                        xpForLevelUp={XP_FOR_LEVEL_UP}
+                        onQuizComplete={handleQuizComplete}
+                        allBadges={ALL_BADGES}
                     />
                 )}
            </div>

@@ -32,11 +32,11 @@ export const generateNotes = async (topic: string): Promise<Notes> => {
   }
 };
 
-export const generateQuiz = async (topic: string, difficulty: 'Easy' | 'Medium' | 'Hard'): Promise<Quiz> => {
+export const generateQuiz = async (topic: string, difficulty: 'Easy' | 'Medium' | 'Hard', numQuestions: number): Promise<Quiz> => {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `Generate a 3-question ${difficulty.toLowerCase()} multiple-choice quiz on the topic: "${topic}". The questions should be appropriate for the selected difficulty level. For each question, provide 4 options and indicate the correct answer.`,
+      contents: `Generate a ${numQuestions}-question ${difficulty.toLowerCase()} multiple-choice quiz on the topic: "${topic}". The questions should be appropriate for the selected difficulty level. For each question, provide 4 options and indicate the correct answer.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
